@@ -13,7 +13,7 @@ const convertToPST = (utcTime, inputFormat) => {
   return pstDateTime.toFormat(inputFormat);
 };
 const fetchData = async (url, auth) => {
-  const response = await axios.get(corsProxy + url, {
+  const response = await axios.get(  url, {
     headers: {
       'Authorization': `Basic ${auth}`,
       "Content-Type": "application/json",
