@@ -2,23 +2,50 @@ import React, { useState, useEffect } from "react";
 import { DateTime } from "luxon"; // Luxon for date-time manipulation
 import axios from "axios"; // Axios for HTTP requests
 
+export const Url = {
+  BASE_URL: process.env.REACT_APP_BASE_API_URL,
+};
 const inputFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-const corsProxy = "https://api.allorigins.win/raw?url=";
+// const corsProxy = "https://api.allorigins.win/raw?url=";
 
+// const convertToPST = (utcTime, inputFormat) => {
+//   const utcDateTime = DateTime.fromFormat(utcTime, inputFormat, {
+//     zone: "utc",
+//   });
+//   const pstDateTime = utcDateTime.setZone("America/Los_Angeles");
+//   return pstDateTime.toFormat(inputFormat);
+// };
 const convertToPST = (utcTime, inputFormat) => {
+  console.log({ utcTime });
+  if (!utcTime) {
+    console.error("Invalid utcTime value:", utcTime);
+    return null;
+  }
+
   const utcDateTime = DateTime.fromFormat(utcTime, inputFormat, {
     zone: "utc",
   });
+
+  if (!utcDateTime.isValid) {
+    console.error("Invalid utcDateTime format:", utcDateTime.invalidReason);
+    return null;
+  }
+
   const pstDateTime = utcDateTime.setZone("America/Los_Angeles");
   return pstDateTime.toFormat(inputFormat);
 };
-const fetchData = async (url, auth) => {
-  const response = await axios.get(  url, {
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      "Content-Type": "application/json",
-    },
-  });
+
+const fetchBooking = async (auth, startDate, endDate, offset) => {
+  const response = await axios.get(
+    `${Url.BASE_URL}/api/bookings?auth=${auth}&startDate=${startDate}&endDate=${endDate}&offset=${offset}`
+  );
+  return response.data;
+};
+
+const fetchDriver = async (auth, startDate, endDate) => {
+  const response = await axios.get(
+    `${Url.BASE_URL}/api/driver?auth=${auth}&startDate=${startDate}&endDate=${endDate}`
+  );
   return response.data;
 };
 
@@ -26,18 +53,19 @@ const App = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const fetchDataFromApi = async () => {
     try {
-      const uid = new URLSearchParams(window.location.search).get("uid");
-
+      // const uid = new URLSearchParams(window.location.search).get("uid");
+      console.log(DateTime.fromMillis(1724310000).toISODate(),"from millis datessssss");
       // if (uid === "TAXIPT0008T") {
       const today = DateTime.now().toISODate();
+      console.log({ today });
       const startDate = DateTime.fromISO(today).minus({ days: 2 }).toISODate();
-      const endDate = startDate;
-
-      console.log(today);
       console.log(startDate);
-      console.log(endDate);
+      const endDate = startDate;
+      console.log({ endDate });
+
       const headers = [
         "ShiftID",
         "VehRegNo",
@@ -77,7 +105,6 @@ const App = () => {
       const hsdate = startDate;
       const hedate = endDate;
       const currentDate = endDate;
-      // https://api.icabbicanada.com/ca2/bookings/history/?order=closed_date&from=${startDate}T00:30:00&to=${endDate}T23:30:00&Order=id&direction=DESC&status=COMPLETED&offset=${offset}&limit=499
       xml += `<Header>
           <UserID/>
           <ApplicationID/>
@@ -88,19 +115,24 @@ const App = () => {
           <EndDt>${hedate}Z</EndDt>
         </Header>`;
 
-      const urlcnt = `https://api.icabbicanada.com/ca2/bookings/history/?order=closed_date&from=${startDate}T00:30:00&to=${endDate}T23:30:00&Order=id&direction=DESC&status=COMPLETED&offset=500&limit=499`;
+      const authcnt =
+        "ODA4ODhiNTlkYjk2MDI3ZTFiZTAwZDU1ZTIyZTdjZmIxZmVmYmQ2ZDozMmRhNzRhOTY3OWY0NjhjNmRhNjAxZWU1NjcyZTE2MjkxNDkxZWJl";
+
+      const resultscnt = await fetchBooking(authcnt, startDate, endDate, 500);
+
+      // `https://api.icabbicanada.com/ca2/bookings/history/?order=closed_date&from=${startDate}T00:30:00&to=${endDate}T23:30:00&Order=id&direction=DESC&status=COMPLETED&offset=500&limit=499`;
       // const unamecnt = 'c1b675d0140492585511900ad07714c676998b65';
-      const unamecnt = "80888b59db96027e1be00d55e22e7cfb1fefbd6d";
+      // const unamecnt = "80888b59db96027e1be00d55e22e7cfb1fefbd6d";
 
       //  const passcnt = '172eeeeb8ef9cd72ff77f7d82b198e64555cb882';
-      const passcnt = "32da74a9679f468c6da601ee5672e16291491ebe";
-      const authcnt = "ODA4ODhiNTlkYjk2MDI3ZTFiZTAwZDU1ZTIyZTdjZmIxZmVmYmQ2ZDozMmRhNzRhOTY3OWY0NjhjNmRhNjAxZWU1NjcyZTE2MjkxNDkxZWJl";
+      // const passcnt = "32da74a9679f468c6da601ee5672e16291491ebe";
 
       // const authcnt = btoa(`${unamecnt}:${passcnt}`);
 
-      const resultscnt = await fetchData(urlcnt, authcnt);
-
+      // const resultscnt = await fetchData(urlcnt, authcnt);
+      console.log(resultscnt, "initial");
       const totalAvailable = resultscnt.body.total_available;
+      console.log(totalAvailable);
       let cnt = Math.ceil(totalAvailable / 499);
       if (cnt < 1) cnt = 1;
 
@@ -108,87 +140,103 @@ const App = () => {
 
       for (let y = 1; y <= cnt; y++) {
         const offset = (y - 1) * 499;
-        const url = `https://api.icabbicanada.com/ca2/bookings/history/?order=closed_date&from=${startDate}T00:30:00&to=${endDate}T23:30:00&Order=id&direction=DESC&status=COMPLETED&offset=${offset}&limit=499`;
+        const results = await fetchBooking(authcnt, startDate, endDate, offset);
+        console.log(results, "innner");
 
-        const results = await fetchData(url, authcnt);
-        const url1 = `https://api.icabbicanada.com/ca2/drivers/hours/?from=${startDate}T00:30:00&to=${endDate}T23:30:00`;
+        const results1 = await fetchDriver(authcnt, startDate, endDate);
+        console.log({ results1 });
 
-        const results1 = await fetchData(url1, authcnt);
-
-        results.body.bookings.forEach((result) => {
-          const conditionalDate = result.pickup_date.substr(0, 10);
-          const conditionalDriverId = result.driver.id;
+        results?.body?.bookings?.forEach((result) => {
+          console.log({ result });
+          const conditionalDate = result?.pickup_date?.substr(0, 10);
+          const conditionalDriverId = result?.driver?.id;
           let shiftStartDate = 0;
           let shiftEndDate = 0;
           let driversActiveInM = 0;
           let counterr = 0;
 
-          results1.body.hours.forEach((result1) => {
+          results1?.body?.hours?.forEach((result1) => {
+            console.log({ result1 });
+            console.log(result1.from, "result1.from");
+            console.log(result1?.driver_id, "result1.driver_id");
+            console.log(conditionalDate);
             if (
               conditionalDate ===
                 DateTime.fromMillis(result1.from).toISODate() &&
-              conditionalDriverId === result1.driver_id
+              conditionalDriverId === result1?.driver_id
             ) {
-              if (counterr === 0) shiftStartDate = result1.from;
+              if (counterr === 0) shiftStartDate = result1?.from;
               shiftEndDate = result1.to + 59 * 60 + 59;
-              driversActiveInM += result1.mins_active;
+              driversActiveInM += result1?.mins_active;
               counterr++;
             }
           });
 
-          const shiftID = `${conditionalDriverId}${shiftStartDate}${shiftEndDate}${result.trip_id}`;
-          const vehRegNo = result.driver.vehicle.reg;
+          const shiftID = `${conditionalDriverId}${shiftStartDate}${shiftEndDate}${result?.trip_id}`;
+          console.log({ shiftID });
+          const vehRegNo = result?.driver?.vehicle.reg;
           const vehRegJur = "BC";
-          const driversLicNo = result.driver.licence;
+          const driversLicNo = result?.driver?.licence;
           const driversLicJur = "BC";
-          const shiftStartDT = convertToPST(
-            DateTime.fromMillis(shiftStartDate).toISO(),
-            inputFormat
-          );
-          const shiftEndDT = convertToPST(
-            DateTime.fromMillis(shiftEndDate).toISO(),
-            inputFormat
-          );
-          const tripID = result.trip_id;
+          const shiftStartDT = shiftStartDate
+            ? convertToPST(
+                DateTime.fromMillis(shiftStartDate).toISO(),
+                inputFormat
+              )
+            : null;
+          console.log({ shiftStartDT });
+          const shiftEndDT = shiftEndDate
+            ? convertToPST(
+                DateTime.fromMillis(shiftStartDate).toISO(),
+                inputFormat
+              )
+            : null;
+          console.log({ shiftEndDT });
+
+          // const shiftEndDT = convertToPST(
+          //   DateTime.fromMillis(shiftEndDate).toISO(),
+          //   inputFormat
+          // );
+          const tripID = result?.trip_id;
           const tripTypeCd = "CNVTL";
-          let tripStatusCd = result.status;
+          let tripStatusCd = result?.status;
           if (tripStatusCd === "COMPLETED") tripStatusCd = "CMPLT";
           else if (tripStatusCd === "NOSHOW") tripStatusCd = "NOSHO";
           const hailTypeCd =
-            result.source === "DISPATCH" ? "PHONE" : result.source;
-          const hailInitDT = convertToPST(result.pickup_date, inputFormat);
+            result?.source === "DISPATCH" ? "PHONE" : result?.source;
+          const hailInitDT = convertToPST(result?.pickup_date, inputFormat);
           const hailAnswerSecs =
             Math.abs(
-              DateTime.fromISO(result.booked_date).toMillis() -
-                DateTime.fromISO(result.pickup_date).toMillis()
+              DateTime.fromISO(result?.booked_date).toMillis() -
+                DateTime.fromISO(result?.pickup_date).toMillis()
             ) / 1000;
           const hailRqstdLat = 49.146961;
           const hailRqstdLng = -123.937782;
-          const preBookedYN = result.prebooked === 0 ? "N" : "Y";
+          const preBookedYN = result?.prebooked === 0 ? "N" : "Y";
           const svcAnimalYN = "N";
           const vehAssgnmtDT = convertToPST(
-            result.arrive_date || result.contact_date,
+            result?.arrive_date || result?.contact_date,
             inputFormat
           );
           const vehAssgnmtLat = 49.146961;
           const vehAssgnmtLng = -123.937782;
-          const psngrCnt = result.payment.passengers;
+          const psngrCnt = result?.payment?.passengers;
           const tripDurationMins = Math.floor(
             Math.abs(
-              DateTime.fromISO(result.close_date).toMillis() -
-                DateTime.fromISO(result.booked_date).toMillis()
+              DateTime.fromISO(result?.close_date).toMillis() -
+                DateTime.fromISO(result?.booked_date).toMillis()
             ) / 60000
           );
-          const tripDistanceKMs = result.payment.distance_charged;
-          const ttlFareAmt = result.payment.total;
-          const pickupArrDT = convertToPST(result.arrive_date, inputFormat);
-          const pickupDepDT = convertToPST(result.arrive_date, inputFormat);
-          const pickupLat = result.address.actual_lat;
-          const pickupLng = result.address.actual_lng;
-          const dropoffArrDT = convertToPST(result.close_date, inputFormat);
-          const dropoffDepDT = convertToPST(result.close_date, inputFormat);
-          const dropoffLat = result.destination.actual_lat;
-          const dropoffLng = result.destination.actual_lng;
+          const tripDistanceKMs = result?.payment?.distance_charged;
+          const ttlFareAmt = result?.payment?.total;
+          const pickupArrDT = convertToPST(result?.arrive_date, inputFormat);
+          const pickupDepDT = convertToPST(result?.arrive_date, inputFormat);
+          const pickupLat = result?.address?.actual_lat;
+          const pickupLng = result?.address?.actual_lng;
+          const dropoffArrDT = convertToPST(result?.close_date, inputFormat);
+          const dropoffDepDT = convertToPST(result?.close_date, inputFormat);
+          const dropoffLat = result?.destination?.actual_lat;
+          const dropoffLng = result?.destination?.actual_lng;
 
           xml += `<Shift>\n\t\t`;
           xml += `<ShiftID>${shiftID}</ShiftID>\n\t\t`;
@@ -230,13 +278,25 @@ const App = () => {
       xml += "</ShiftData>\n\t\t</PassengerTrip>";
       console.log(xml);
       setData(xml);
-      // }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleDownload = () => {
+    if (data) {
+      const blob = new Blob([data], { type: "text/xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "PassengerTrip.xml";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
   useEffect(() => {
     fetchDataFromApi();
   }, []);
@@ -247,7 +307,9 @@ const App = () => {
   return (
     <div>
       <h1>XML Data</h1>
-      <pre>{data}</pre>
+      <button onClick={handleDownload}>Download XML</button>
+
+      {/* <pre>{data}</pre> */}
     </div>
   );
 };
